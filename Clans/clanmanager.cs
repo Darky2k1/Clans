@@ -233,6 +233,7 @@ namespace Clans
             }
         }
 
+
         public void DeleteClan(string ClanName)
         {
             database.Query("DELETE FROM Clans WHERE ClanName = @0", ClanName);

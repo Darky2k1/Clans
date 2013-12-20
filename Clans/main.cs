@@ -13,8 +13,10 @@ namespace Clans
     [ApiVersion(1, 14)]
     public class Clans : TerrariaPlugin
     {
+        System.Net.WebClient wc = new System.Net.WebClient();
         Timer t = new Timer(2000);
         string[] Invites = new string[255];
+        bool UpdateAvailable = false;
 
         public static ClanManager CM = new ClanManager();
 
@@ -39,6 +41,7 @@ namespace Clans
 
         public override void Initialize()
         {
+            wc.Proxy = null;
             t.Elapsed += OnTimer;
             ServerApi.Hooks.ServerLeave.Register(this, OnLeave);
             ServerApi.Hooks.NetGreetPlayer.Register(this, OnGreetPlayer);
@@ -54,6 +57,7 @@ namespace Clans
                 Directory.CreateDirectory(CM.savepath);
             }
             CM.SetupDb();
+            CheckUpdate();
         }
 
         private void OnTimer(object sender, ElapsedEventArgs args)
@@ -61,11 +65,14 @@ namespace Clans
             t.Stop();
             foreach (TSPlayer ts in CM.awaitingtp)
             {
-                Clan c = CM.FindClanByMember(ts);
-                if (c.ClanTileX > 0 && c.ClanTileY > 0)
+                if (ts != null)
                 {
-                    ts.Teleport(c.ClanTileX * 16, c.ClanTileY * 16);
-                    ts.SendInfoMessage("You have been teleported to your clan's spawnpoint!");
+                    Clan c = CM.FindClanByMember(ts);
+                    if (c.ClanTileX > 0 && c.ClanTileY > 0)
+                    {
+                        ts.Teleport(c.ClanTileX * 16, c.ClanTileY * 16);
+                        ts.SendInfoMessage("You have been teleported to your clan's spawnpoint!");
+                    }
                 }
             }
             CM.awaitingtp.Clear();
@@ -90,6 +97,14 @@ namespace Clans
 
         private void OnGreetPlayer(GreetPlayerEventArgs args)
         {
+            if (UpdateAvailable)
+            {
+                if (TShock.Players[args.Who].Group.HasPermission("tshock.cfg"))
+                {
+                    TShock.Players[args.Who].SendMessage(string.Format("[Clans] There is a new update for the Clans plugin available!"), CM.clanchatcolor);
+                    TShock.Players[args.Who].SendMessage(string.Format("[Clans] Download at http://tshock.co/xf/index.php?threads/1-14-clans.2649/"), CM.clanchatcolor);
+                }
+            }
             CM.awaitingtp.Add(TShock.Players[args.Who]);
             t.Start();
         }
@@ -120,7 +135,7 @@ namespace Clans
                 args.Player.SendErrorMessage("Invalid syntax! valid syntax: /c <message>");
                 return;
             }
-            string prefix = c.Ranks[sender.ClanRank-1];
+            string prefix = c.Ranks[sender.ClanRank - 1];
             foreach (TSPlayer ts in TShock.Players)
             {
                 if (ts != null)
@@ -138,7 +153,7 @@ namespace Clans
         #region clan admin commands
         private void clanadmin(CommandArgs args)
         {
-            string clanname="";
+            string clanname = "";
             if (args.Parameters.Count < 1)
             {
                 args.Player.SendErrorMessage("Invalid syntax! type /clanadmin help");
@@ -213,7 +228,7 @@ namespace Clans
                     if (CM.CreateClan(name, args.Player))
                     {
                         args.Player.SendInfoMessage("Your clan has been created successfully!");
-                        TSPlayer.All.SendMessage(string.Format("[Clans] {0} has created a new clan called \"{1}\".", args.Player.Name, name),CM.clanchatcolor);
+                        TSPlayer.All.SendMessage(string.Format("[Clans] {0} has created a new clan called \"{1}\".", args.Player.Name, name), CM.clanchatcolor);
                     }
                     #endregion create
                     return;
@@ -508,8 +523,8 @@ namespace Clans
                     }
                     if (CM.SetRank(plr, (int)Rank))
                     {
-                        plr.SendInfoMessage("Your clan rank is now " + c.Ranks[rank-1]);
-                        args.Player.SendInfoMessage(string.Format("You have changed {0}'s rank to " + c.Ranks[rank -1], plr.Name));
+                        plr.SendInfoMessage("Your clan rank is now " + c.Ranks[rank - 1]);
+                        args.Player.SendInfoMessage(string.Format("You have changed {0}'s rank to " + c.Ranks[rank - 1], plr.Name));
                     }
                     else
                     {
@@ -561,7 +576,7 @@ namespace Clans
                     if (!PaginationTools.TryParsePageNumber(args.Parameters, 1, args.Player, out pageNumber))
                         return;
                     int clancount = CM.CountMembers(cm.ClanName);
-                    args.Player.SendMessage(string.Format("[Clans] Your clan has {0} member{1}!", clancount, clancount>1?"s":""),CM.clanchatcolor);
+                    args.Player.SendMessage(string.Format("[Clans] Your clan has {0} member{1}!", clancount, clancount > 1 ? "s" : ""), CM.clanchatcolor);
                     IEnumerable<string> clanmembernames = from clanmember in CM.FindClanMembersByClan(cm.ClanName) select clanmember.UserName;
                     PaginationTools.SendPage(args.Player, pageNumber, PaginationTools.BuildLinesFromTerms(clanmembernames),
                             new PaginationTools.Settings
@@ -708,7 +723,7 @@ namespace Clans
                     #endregion ban
                     return;
                 case "help":
-                    #region help
+                #region help
                 default:
                     if (args.Parameters.Count < 2)
                     {
@@ -743,7 +758,7 @@ namespace Clans
                         args.Player.SendInfoMessage(Helpmessages[14]);
                         //args.Player.SendInfoMessage("Type /clan help 4 for more");
                     }
-                    #endregion help
+                #endregion help
                     return;
             }
         }
@@ -766,5 +781,17 @@ namespace Clans
             "/clan unban - will unban a player from your clan (if he was banned).",
             "/clan kick - will kick a player out of your clan."
         };
+
+        public void CheckUpdate()
+        {
+            int newversion;
+            int currentversion;
+            int.TryParse(wc.DownloadString("https://raw.github.com/ancientgods/Clans/master/README.md").Split('-')[1].Replace(".", ""), out newversion);
+            int.TryParse(Assembly.GetExecutingAssembly().GetName().Version.ToString().Replace(".", ""), out currentversion);
+            if (newversion > currentversion)
+            {
+                UpdateAvailable = true;
+            }
+        }
     }
 }
