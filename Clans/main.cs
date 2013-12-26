@@ -208,6 +208,12 @@ namespace Clans
             {
                 case "create":
                     #region create
+                    
+                    if(!args.Player.Group.Haspermission("clan.master"))
+                    {
+                        args.Player.SendErrorMessage("You do not have permission to create clans.");
+                        return;
+                    }
                     if (args.Parameters.Count < 2)
                     {
                         args.Player.SendErrorMessage("Invalid syntax! valid syntax: /clan create <name for the clan>");
